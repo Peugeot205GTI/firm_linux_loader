@@ -10,6 +10,7 @@
 #include "font.h"
 #include "draw.h"
 #include "fs.h"
+#include "linux_config.h"
 
 static u8 *top_screen0 = NULL;
 static u8 *top_screen1 = NULL;
@@ -19,26 +20,15 @@ static u8 *bot_screen1 = NULL;
 static char debugstr[DBG_N_CHARS_X * DBG_N_CHARS_Y] = { 0 };
 static u32 debugcol[DBG_N_CHARS_Y] = { DBG_COLOR_FONT };
 
-void InitScreenFbs(int argc, char *argv[])
+void InitScreenFbs(int _argc, char *_argv[])
 {
-	if (argc >= 2) {
-		/* newer entrypoints */
-		struct {
-			u8 *top_left;
-			u8 *top_right;
-			u8 *bottom;
-		} *fb = (void *)argv[1];
-		top_screen0 = fb[0].top_left;
-		top_screen1 = fb[1].top_left;
-		bot_screen0 = fb[0].bottom;
-		bot_screen1 = fb[1].bottom;
-	} else {
-		/* outdated entrypoints */
-		top_screen0 = (u8 *)(*(u32 *)0x23FFFE00);
-		top_screen1 = (u8 *)(*(u32 *)0x23FFFE00);
-		bot_screen0 = (u8 *)(*(u32 *)0x23FFFE08);
-		bot_screen1 = (u8 *)(*(u32 *)0x23FFFE08);
-	}
+	// The arm11 start.S remaps the frame buffers to new
+	// locations, so we don't use the values which come
+	// from args.
+	top_screen0 = (u8 *) FB_TOP_LEFT1;
+	top_screen1 = (u8 *) FB_TOP_LEFT2;
+	bot_screen0 = (u8 *) FB_BOT_1;
+	bot_screen1 = (u8 *) FB_BOT_2;
 }
 
 void ClearScreen(u8 *screen, int width, int color)

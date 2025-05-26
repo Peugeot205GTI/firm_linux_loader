@@ -1,32 +1,17 @@
 #include "linux_config.h"
 #include "scu.h"
 
-@ LCD Frambuffers stuff (Physical Addresses)
-#define LCD_FB_PDC0           (0x10400400)
-#define LCD_FB_PDC1           (0x10400500)
-#define LCD_FB_A_ADDR_OFFSET  (0x68)
-#define LCD_FB_FORMAT_OFFSET  (0x70)
-#define LCD_FB_PDC0_FORMAT    (0x80341)
-#define LCD_FB_SELECT_OFFSET  (0x78)
-#define LCD_FB_STRIDE_OFFSET  (0x90)
-#define LCD_FB_PDC0_STRIDE    (0x2D0)
-#define LCD_FB_B_ADDR_OFFSET  (0x94)
-#define FB_TOP_SIZE           (400 * 240 * 3)
-#define FB_BOT_SIZE           (320 * 240 * 3)
-#define FB_BASE_PA            (VRAM_BASE)
-#define FB_TOP_LEFT1          (FB_BASE_PA)
-#define FB_TOP_LEFT2          (FB_TOP_LEFT1  + FB_TOP_SIZE)
-#define FB_TOP_RIGHT1         (FB_TOP_LEFT2  + FB_TOP_SIZE)
-#define FB_TOP_RIGHT2         (FB_TOP_RIGHT1 + FB_TOP_SIZE)
-#define FB_BOT_1              (FB_TOP_RIGHT2 + FB_TOP_SIZE)
-#define FB_BOT_2              (FB_BOT_1      + FB_BOT_SIZE)
-
 	.arm
 	.section .text.start
 	.cpu mpcore
 
 	.global _start
 _start:
+	@ Initialize RAM value used to sync with arm9
+	ldr r0, =SYNC_ADDR
+	mov r1, #SYNC_INIT
+	str r1, [r0]
+
 	@ Disable FIQs, IRQs, imprecise aborts
 	@ and enter SVC mode
 	cpsid aif, #0x13
@@ -91,6 +76,32 @@ _start:
 
 	@@@@@ Map Framebuffers @@@@@
 
+	@@@ Zero framebuffer region @@@
+	ldr     r0, =FB_TOP_LEFT1  @ address of buffer
+	mov     r1, #0             @ value to set
+	ldr     r2, =FB_TOP_SIZE   @ number of bytes
+	bl      memset
+	ldr     r0, =FB_TOP_LEFT2
+	mov     r1, #0
+	ldr     r2, =FB_TOP_SIZE
+	bl      memset
+	ldr     r0, =FB_TOP_RIGHT1
+	mov     r1, #0
+	ldr     r2, =FB_TOP_SIZE
+	bl      memset
+	ldr     r0, =FB_TOP_RIGHT2
+	mov     r1, #0
+	ldr     r2, =FB_TOP_SIZE
+	bl      memset
+	ldr     r0, =FB_BOT_1
+	mov     r1, #0
+	ldr     r2, =FB_BOT_SIZE
+	bl      memset
+	ldr     r0, =FB_BOT_2
+	mov     r1, #0
+	ldr     r2, =FB_BOT_SIZE
+	bl      memset
+
 	@@@ Top screen @@@
 	ldr r0, =LCD_FB_PDC0
 
@@ -125,15 +136,19 @@ _start:
 	@ Select framebuffer 0
 	mov r1, #0
 	str r1, [r0, #LCD_FB_SELECT_OFFSET]
+	
+	ldr r0, =SYNC_ADDR
+	mov r1, #SYNC_FB_RDY
+	str r1, [r0]
 
 	@@@@@ Jump to the kernel @@@@@
-
+	
 	@ Wait until ARM9 tells Linux address...
 	ldr r0, =SYNC_ADDR
 wait_arm9:
 	ldr r1, [r0]
-	cmp r1, #0
-	beq wait_arm9
+	cmp r1, #SYNC_BOOT_RDY
+	bne wait_arm9
 
 	@ Setup the registers before
 	@ jumping to the kernel entry
