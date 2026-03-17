@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 	DeinitFS();
 
 	/* Make the ARM11 jump to the Linux payload */
-	*(vu32 *)SYNC_ADDR = 1;
+	*(vu32 *)SYNC_ADDR = SYNC_BOOT_RDY;
 
 	flushCaches();
 

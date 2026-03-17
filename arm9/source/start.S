@@ -1,3 +1,5 @@
+#include "linux_config.h"
+
 	.section .text.start
 	.global _start
 _start:
@@ -59,6 +61,15 @@ _start:
 	ldr r0, =0x10000020
 	mov r1, #0x340
 	str r1, [r0]
+	
+	@ wait for arm11
+	ldr r0, =SYNC_ADDR
+wait_arm11:
+	ldr r1, [r0]
+	cmp r1, #SYNC_FB_RDY
+	bne wait_arm11
+
+	@@@ Jump to main @@@
 
 	mov r0, r9
 	mov r1, r10
