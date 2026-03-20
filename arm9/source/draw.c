@@ -20,6 +20,20 @@ static u8 *bot_screen1 = NULL;
 static char debugstr[DBG_N_CHARS_X * DBG_N_CHARS_Y] = { 0 };
 static u32 debugcol[DBG_N_CHARS_Y] = { DBG_COLOR_FONT };
 
+static bool IsTopScreen(const u8 *screen)
+{
+	return (screen == top_screen0 || screen == top_screen1);
+}
+
+static inline u16 Rgb888ToRgb565(int color)
+{
+	const u16 r = (color & 0xFF);
+	const u16 g = (color >> 8) & 0xFF;
+	const u16 b = (color >> 16) & 0xFF;
+
+	return (u16) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+}
+
 void InitScreenFbs(int _argc, char *_argv[])
 {
 	// The arm11 start.S remaps the frame buffers to new
@@ -36,10 +50,18 @@ void ClearScreen(u8 *screen, int width, int color)
 	if (color == COLOR_TRANSPARENT)
 		color = COLOR_BLACK;
 
+	const bool is_top = IsTopScreen(screen);
+
 	for (int i = 0; i < (width * SCREEN_HEIGHT); i++) {
-		*(screen++) = color >> 16;      // B
-		*(screen++) = color >> 8;       // G
-		*(screen++) = color & 0xFF;     // R
+		if (is_top) {
+			u16 px = Rgb888ToRgb565(color);
+			*(screen++) = px & 0xFF;
+			*(screen++) = px >> 8;
+		} else {
+			*(screen++) = color >> 16;      // B
+			*(screen++) = color >> 8;       // G
+			*(screen++) = color & 0xFF;     // R
+		}
 	}
 }
 
@@ -57,23 +79,38 @@ void ClearScreenFull(bool clear_top, bool clear_bottom)
 
 void DrawCharacter(u8 *screen, int character, int x, int y, int color, int bgcolor)
 {
+	const bool is_top = IsTopScreen(screen);
+	const int bytes_per_pixel = is_top ? TOP_BYTES_PER_PIXEL : BOT_BYTES_PER_PIXEL;
+	const u16 fg565 = Rgb888ToRgb565(color);
+	const u16 bg565 = Rgb888ToRgb565(bgcolor);
+
 	for (int yy = 0; yy < 8; yy++) {
-		int xDisplacement = (x * BYTES_PER_PIXEL * SCREEN_HEIGHT);
-		int yDisplacement = ((SCREEN_HEIGHT - (y + yy) - 1) * BYTES_PER_PIXEL);
+		int xDisplacement = (x * bytes_per_pixel * SCREEN_HEIGHT);
+		int yDisplacement = ((SCREEN_HEIGHT - (y + yy) - 1) * bytes_per_pixel);
 		u8 *screenPos = screen + xDisplacement + yDisplacement;
 
 		u8 charPos = font[character * 8 + yy];
 		for (int xx = 7; xx >= 0; xx--) {
 			if ((charPos >> xx) & 1) {
-				*(screenPos + 0) = color >> 16;         // B
-				*(screenPos + 1) = color >> 8;          // G
-				*(screenPos + 2) = color & 0xFF;        // R
+				if (is_top) {
+					*(screenPos + 0) = fg565 & 0xFF;
+					*(screenPos + 1) = fg565 >> 8;
+				} else {
+					*(screenPos + 0) = color >> 16;         // B
+					*(screenPos + 1) = color >> 8;          // G
+					*(screenPos + 2) = color & 0xFF;        // R
+				}
 			} else if (bgcolor != COLOR_TRANSPARENT) {
-				*(screenPos + 0) = bgcolor >> 16;       // B
-				*(screenPos + 1) = bgcolor >> 8;        // G
-				*(screenPos + 2) = bgcolor & 0xFF;      // R
+				if (is_top) {
+					*(screenPos + 0) = bg565 & 0xFF;
+					*(screenPos + 1) = bg565 >> 8;
+				} else {
+					*(screenPos + 0) = bgcolor >> 16;       // B
+					*(screenPos + 1) = bgcolor >> 8;        // G
+					*(screenPos + 2) = bgcolor & 0xFF;      // R
+				}
 			}
-			screenPos += BYTES_PER_PIXEL * SCREEN_HEIGHT;
+			screenPos += bytes_per_pixel * SCREEN_HEIGHT;
 		}
 	}
 }
